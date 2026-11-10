@@ -53,4 +53,55 @@ public sealed class IncidentEndpointTests(SecureLabApiFactory factory)
         Assert.DoesNotContain("innerHTML", script, StringComparison.Ordinal);
         Assert.Contains("textContent", script, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task Post_InvalidDto_ReturnsValidationProblem()
+    {
+        var body = new
+        {
+            title = " ",
+            description = "",
+            severity = "7",
+            occurredAtUtc = DateTimeOffset.UtcNow.AddMinutes(10)
+        };
+
+        using var response = await _client.PostAsJsonAsync("/api/incidents", body);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+
+        var json = await response.Content.ReadAsStringAsync();
+
+        Assert.Contains("\"title\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"description\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"severity\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"occurredAtUtc\"", json, StringComparison.Ordinal);
+
+        Assert.DoesNotContain("stack trace", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("SELECT", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Post_DuplicateActiveTitle_ReturnsConflict()
+    {
+        var body = new
+        {
+            title = "Підозрілий лист із вкладенням",
+            description = "Опис для перевірки конфлікту предметного правила.",
+            severity = "Low",
+            occurredAtUtc = DateTimeOffset.UtcNow.AddMinutes(-10)
+        };
+
+        using var response = await _client.PostAsJsonAsync("/api/incidents", body);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+
+        var json = await response.Content.ReadAsStringAsync();
+        using var document = JsonDocument.Parse(json);
+
+        Assert.Equal(409, document.RootElement.GetProperty("status").GetInt32());
+        Assert.DoesNotContain("SELECT", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("connection", json, StringComparison.OrdinalIgnoreCase);
+    }
 }
