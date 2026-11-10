@@ -28,3 +28,11 @@ Accept: application/json
 ### Lab 1 extension point: expected 501 before student implementation
 GET {{host}}/api/incidents/severity-summary
 Accept: application/json
+
+### S-01 - контрольний пошук без SQL injection
+GET {{host}}/api/incidents/search?q=zz-no-match
+Accept: application/json
+
+### S-01 - демонстрація SQL injection до виправлення
+GET {{host}}/api/incidents/search?q=zz-no-match'%20OR%20TRUE%20--%20
+Accept: application/json

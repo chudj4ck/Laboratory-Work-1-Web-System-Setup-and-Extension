@@ -18,6 +18,11 @@ public static class IncidentEndpoints
             .Produces<IReadOnlyList<IncidentListItemResponse>>()
             .ProducesValidationProblem();
 
+        group.MapGet("/search", SearchAsync)
+            .WithName("SearchIncidents")
+            .Produces<IReadOnlyList<IncidentListItemResponse>>()
+            .ProducesValidationProblem();
+
         group.MapGet("/{id:guid}", GetDetailsAsync)
             .WithName("GetIncidentDetails")
             .Produces<IncidentDetailsResponse>()
@@ -35,6 +40,14 @@ public static class IncidentEndpoints
             .ProducesProblem(StatusCodes.Status409Conflict);
 
         return endpoints;
+    }
+
+    private static string EscapeLike(string value)
+    {
+        return value
+            .Replace("\\", "\\\\")
+            .Replace("%", "\\%")
+            .Replace("_", "\\_");
     }
 
     private static async Task<IResult> GetListAsync(
@@ -58,6 +71,42 @@ public static class IncidentEndpoints
         }
 
         return Results.Ok(await queries.GetListAsync(parsedStatus, cancellationToken));
+    }
+
+    private static async Task<IResult> SearchAsync(
+         string? q,
+         string? sortBy,
+         SecureLabDbContext db,
+         CancellationToken cancellationToken)
+    {
+        var searchTerm = q ?? string.Empty;
+        var pattern = $"%{searchTerm}%";
+
+        var found = db.Incidents
+            .AsNoTracking()
+            .Where(item =>
+                EF.Functions.ILike(item.Title, pattern)
+                || EF.Functions.ILike(item.Description, pattern));
+
+        IQueryable<Incident> ordered = sortBy switch
+        {
+            null or "" or "createdAtUtc" => found
+                .OrderByDescending(item => item.CreatedAtUtc)
+                .ThenBy(item => item.Id),
+            _ => found.OrderBy(item => item.CreatedAtUtc)
+        };
+
+        var result = await ordered
+            .Select(i => new IncidentListItemResponse(
+                i.Id,
+                i.Title,
+                i.Severity.ToString(),
+                i.Status.ToString(),
+                i.OccurredAtUtc,
+                i.CreatedAtUtc))
+            .ToListAsync(cancellationToken);
+
+        return Results.Ok(result);
     }
 
     private static async Task<IResult> GetDetailsAsync(
@@ -104,7 +153,6 @@ public static class IncidentEndpoints
     {
         var errors = new Dictionary<string, string[]>();
 
-        // Валідація Severity
         bool severityIsValid = Enum.TryParse<IncidentSeverity>(request.Severity, ignoreCase: true, out var severity)
                                && Enum.IsDefined(severity);
 
@@ -115,7 +163,6 @@ public static class IncidentEndpoints
 
         string description = request.Description ?? string.Empty;
 
-        // Валідація опису для High/Critical
         if (severityIsValid
             && (severity == IncidentSeverity.High || severity == IncidentSeverity.Critical)
             && !errors.ContainsKey("description")
@@ -129,7 +176,6 @@ public static class IncidentEndpoints
             return Results.ValidationProblem(errors);
         }
 
-        // Перевірка предметного конфлікту - Т-03
         var title = request.Title;
         var duplicateExists = await db.Incidents.AnyAsync(
             item =>
@@ -145,7 +191,6 @@ public static class IncidentEndpoints
                 statusCode: StatusCodes.Status409Conflict);
         }
 
-        // Створення сутності інциденту
         var now = DateTimeOffset.UtcNow;
         var occurredAtUtc = now;
 
@@ -165,7 +210,6 @@ public static class IncidentEndpoints
         db.Incidents.Add(incident);
         await db.SaveChangesAsync(ct);
 
-        // Формування DTO для відповіді
         var response = new CreatedIncidentResponse(
             incident.Id,
             incident.Title,
