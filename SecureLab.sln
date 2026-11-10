@@ -5,9 +5,9 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SecureLab.Api", "src\SecureLab.Api\SecureLab.Api.csproj", "{CDCC4982-3457-40CD-A351-91D030B88A11}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05-4346-4AA6-1389-037BE0695223}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SecureLab.Api", "src\SecureLab.Api\SecureLab.Api.csproj", "{CDCC4982-3457-40CD-A351-91D030B88A11}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SecureLab.Api.Tests", "tests\SecureLab.Api.Tests\SecureLab.Api.Tests.csproj", "{F7545A6E-33A6-409A-9D5A-8706235DA6B5}"
 EndProject
@@ -52,5 +52,8 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{CDCC4982-3457-40CD-A351-91D030B88A11} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{F7545A6E-33A6-409A-9D5A-8706235DA6B5} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {66EDD431-0799-44C1-8086-32BBDFF06031}
 	EndGlobalSection
 EndGlobal
