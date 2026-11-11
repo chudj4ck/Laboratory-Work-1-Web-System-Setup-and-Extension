@@ -8,5 +8,9 @@ public sealed class SecureLabApiFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
+
+        // У тестовому сервері всі клієнти мають однаковий ключ ліміту ("unknown"),
+        // тому для звичайних тестів ліміт входів піднято; сам ліміт перевіряє окремий host.
+        builder.UseSetting("LoginRateLimit:PermitLimit", "1000");
     }
 }

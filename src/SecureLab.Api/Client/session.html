@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ЛР 03 — сеанс користувача</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 760px; margin: 24px auto; padding: 0 16px; }
+    section { border: 1px solid #c8c8c8; border-radius: 8px; padding: 12px 16px; margin: 16px 0; }
+    h2 { margin: 0 0 8px; font-size: 1.1rem; }
+    label { display: block; margin: 6px 0; }
+    input, select, textarea { width: 100%; box-sizing: border-box; padding: 6px; }
+    button { margin-top: 8px; padding: 6px 14px; }
+    .status { font-weight: 600; }
+    .message { margin: 8px 0 0; min-height: 1.2em; }
+    dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 8px 0 0; }
+    dt { font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>Трекер інцидентів — сеанс користувача</h1>
+
+  <section>
+    <h2>Стан cookie-сеансу</h2>
+    <p class="status" id="session-state">Перевірка…</p>
+    <button id="logout" type="button">Вийти</button>
+    <p class="message" id="logout-result"></p>
+  </section>
+
+  <section>
+    <h2>Реєстрація</h2>
+    <form id="register-form" autocomplete="off">
+      <label>Ім’я користувача <input name="userName" required maxlength="256"></label>
+      <label>Електронна пошта <input name="email" type="email" required maxlength="256"></label>
+      <label>Відображуване ім’я <input name="displayName" required maxlength="120"></label>
+      <label>Пароль <input name="password" type="password" autocomplete="new-password" required></label>
+      <button>Зареєструватися</button>
+    </form>
+    <p class="message" id="register-result"></p>
+  </section>
+
+  <section>
+    <h2>Вхід</h2>
+    <form id="login-form">
+      <label>Ім’я користувача <input name="userName" autocomplete="username" required></label>
+      <label>Пароль <input name="password" type="password" autocomplete="current-password" required></label>
+      <button>Увійти</button>
+    </form>
+    <p class="message" id="login-result"></p>
+  </section>
+
+  <section>
+    <h2>Мій профіль</h2>
+    <button id="load-profile" type="button">Оновити профіль</button>
+    <p class="message" id="profile-message"></p>
+    <dl id="profile"></dl>
+  </section>
+
+  <section>
+    <h2>Новий інцидент</h2>
+    <form id="incident-form">
+      <label>Назва <input name="title" required maxlength="160"></label>
+      <label>Опис <textarea name="description" rows="3" required maxlength="4000"></textarea></label>
+      <label>Рівень критичності
+        <select name="severity">
+          <option>Low</option><option>Medium</option><option>High</option><option>Critical</option>
+        </select>
+      </label>
+      <label>Дата й час виникнення <input name="occurredAt" type="datetime-local" required></label>
+      <button>Створити інцидент</button>
+    </form>
+    <p class="message" id="incident-result"></p>
+    <dl id="incident"></dl>
+  </section>
+
+  <script src="session.js" defer></script>
+</body>
+</html>

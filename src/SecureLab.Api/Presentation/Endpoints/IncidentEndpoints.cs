@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using SecureLab.Api.Application.Incidents;
 using SecureLab.Api.Data;
@@ -40,6 +41,7 @@ public static class IncidentEndpoints
             .ProducesValidationProblem();
 
         group.MapPost("/", CreateAsync)
+            .RequireAuthorization()
             .WithName("CreateIncident")
             .Produces<CreatedIncidentResponse>(StatusCodes.Status201Created)
             .ProducesValidationProblem()
@@ -85,8 +87,7 @@ public static class IncidentEndpoints
         SecureLabDbContext db,
         CancellationToken cancellationToken)
     {
-        // Значення користувача потрапляє в запит лише як параметр,
-        // а спецсимволи LIKE (\, %, _) екрануються і шукаються буквально.
+
         var pattern = "%" + EscapeLike(q ?? string.Empty) + "%";
 
         var found = db.Incidents
@@ -95,7 +96,6 @@ public static class IncidentEndpoints
                 EF.Functions.ILike(item.Title, pattern, "\\")
                 || EF.Functions.ILike(item.Description, pattern, "\\"));
 
-        // Білий список сортування: sortBy ніколи не підставляється в SQL.
         IQueryable<Incident> ordered;
         switch (sortBy)
         {
@@ -175,12 +175,20 @@ public static class IncidentEndpoints
 
     private static async Task<IResult> CreateAsync(
         CreateIncidentRequest request,
+        HttpContext httpContext,
         SecureLabDbContext db,
         CancellationToken ct)
     {
+
+        if (!Guid.TryParse(httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier), out var verifiedUserId))
+        {
+            return Results.Problem(
+                title: "Некоректний контекст користувача",
+                statusCode: StatusCodes.Status500InternalServerError);
+        }
+
         var errors = new Dictionary<string, string[]>();
 
-        // Робочий годинник API: час береться один раз на початку обробки.
         var now = DateTimeOffset.UtcNow;
 
         var title = request.Title?.Trim() ?? string.Empty;
@@ -203,7 +211,6 @@ public static class IncidentEndpoints
             errors["description"] = new[] { $"Опис не повинен перевищувати {MaxDescriptionLength} символів." };
         }
 
-        // Приймаються лише назви рівнів; числа на кшталт "7" або "1" відхиляються.
         var severity = IncidentSeverity.Low;
         var severityIsValid = request.Severity is not null
             && SeverityNames.Contains(request.Severity, StringComparer.OrdinalIgnoreCase)
@@ -226,7 +233,6 @@ public static class IncidentEndpoints
             };
         }
 
-        // Логіка перевірки довжини опису для інцидентів High і Critical
         if (severityIsValid
             && (severity == IncidentSeverity.High || severity == IncidentSeverity.Critical)
             && !errors.ContainsKey("description")
@@ -254,13 +260,12 @@ public static class IncidentEndpoints
                 statusCode: StatusCodes.Status409Conflict);
         }
 
-        // PostgreSQL (timestamptz) приймає DateTimeOffset лише зі зміщенням +00:00.
         var occurredAtUtc = request.OccurredAtUtc.GetValueOrDefault(now).ToUniversalTime();
 
         var incident = new Incident
         {
             Id = Guid.NewGuid(),
-            OwnerUserId = DbSeeder.AliceId,
+            OwnerUserId = verifiedUserId,
             Title = title,
             Description = description,
             Severity = severity,
@@ -273,7 +278,6 @@ public static class IncidentEndpoints
         db.Incidents.Add(incident);
         await db.SaveChangesAsync(ct);
 
-        // Формування DTO для відповіді
         var response = new CreatedIncidentResponse(
             incident.Id,
             incident.Title,

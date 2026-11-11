@@ -1,0 +1,23 @@
+@baseUrl = http://localhost:5080
+
+### Початковий дефект: /api/me довіряє заголовку X-Demo-UserId без cookie (Guid Bob)
+GET {{baseUrl}}/api/me
+X-Demo-UserId: 10000000-0000-0000-0000-000000000002
+
+### Після виправлення: той самий запит без cookie має дати 401
+GET {{baseUrl}}/api/me
+X-Demo-UserId: 10000000-0000-0000-0000-000000000002
+
+### Профіль без входу і без заголовка: 401
+GET {{baseUrl}}/api/me
+
+### Анонімне створення інциденту: очікується 401
+POST {{baseUrl}}/api/incidents
+Content-Type: application/json
+
+{
+  "title": "A01 Anonymous",
+  "description": "Спроба створити інцидент без входу в систему.",
+  "severity": "Low",
+  "occurredAtUtc": "2026-11-01T10:00:00Z"
+}

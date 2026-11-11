@@ -10,6 +10,15 @@ public sealed class IncidentEndpointTests(SecureLabApiFactory factory)
     : IClassFixture<SecureLabApiFactory>
 {
     private readonly HttpClient _client = factory.CreateClient();
+    private readonly SecureLabApiFactory _factory = factory;
+
+    // Створення інциденту захищене, тому перевірки контракту ЛР 2 виконуються клієнтом із cookie.
+    private Task<HttpClient> LoginAsAliceAsync()
+    {
+        var password = Environment.GetEnvironmentVariable("SeedUsers__Password")
+            ?? throw new InvalidOperationException("Set local SeedUsers__Password outside Git.");
+        return _factory.LoginAsync("alice", password);
+    }
 
     [Fact]
     public async Task GetList_ReturnsSeededIncidents()
@@ -65,7 +74,8 @@ public sealed class IncidentEndpointTests(SecureLabApiFactory factory)
             occurredAtUtc = DateTimeOffset.UtcNow.AddMinutes(10)
         };
 
-        using var response = await _client.PostAsJsonAsync("/api/incidents", body);
+        using var client = await LoginAsAliceAsync();
+        using var response = await client.PostAsJsonAsync("/api/incidents", body);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
@@ -92,7 +102,8 @@ public sealed class IncidentEndpointTests(SecureLabApiFactory factory)
             occurredAtUtc = DateTimeOffset.UtcNow.AddMinutes(-10)
         };
 
-        using var response = await _client.PostAsJsonAsync("/api/incidents", body);
+        using var client = await LoginAsAliceAsync();
+        using var response = await client.PostAsJsonAsync("/api/incidents", body);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);

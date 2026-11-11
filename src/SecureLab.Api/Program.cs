@@ -1,4 +1,5 @@
 using SecureLab.Api.Scaffolding;
+using System.Threading.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 using SecureLab.Api.Application.Incidents;
@@ -22,6 +23,36 @@ builder.Services.AddDbContext<SecureLabDbContext>(options =>
 builder.Services.AddScoped<IncidentQueries>();
 
 builder.AddLab03Identity();
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = (context, _) =>
+    {
+        context.HttpContext.RequestServices
+            .GetRequiredService<ILoggerFactory>()
+            .CreateLogger(Lab03Identity.AuthenticationLogCategory)
+            .LogWarning(
+                "Authentication event {EventType}: result {Result}, trace {TraceId}",
+                "login", "rate_limited", context.HttpContext.TraceIdentifier);
+        return ValueTask.CompletedTask;
+    };
+    options.AddPolicy(Lab03Identity.LoginRateLimitPolicy, httpContext =>
+    {
+        var configuration = httpContext.RequestServices.GetRequiredService<IConfiguration>();
+        var permitLimit = configuration.GetValue("LoginRateLimit:PermitLimit", 5);
+        var windowSeconds = configuration.GetValue("LoginRateLimit:WindowSeconds", 60);
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = permitLimit,
+                Window = TimeSpan.FromSeconds(windowSeconds),
+                QueueLimit = 0
+            });
+    });
+});
 
 var app = builder.Build();
 
@@ -51,6 +82,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
