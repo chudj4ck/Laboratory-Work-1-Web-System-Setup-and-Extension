@@ -9,11 +9,12 @@ public sealed class IncidentQueries(SecureLabDbContext dbContext, ILogger<Incide
 {
     public async Task<IReadOnlyList<IncidentListItemResponse>> GetListAsync(
         IncidentStatus? status,
+        IncidentViewer viewer,
         CancellationToken cancellationToken)
     {
         logger.LogInformation("Loading incidents with status filter {Status}", status);
 
-        var query = dbContext.Incidents.AsNoTracking();
+        var query = dbContext.Incidents.AsNoTracking().Where(IncidentAccess.VisibleTo(viewer));
         if (status is not null)
         {
             query = query.Where(incident => incident.Status == status);
@@ -31,13 +32,19 @@ public sealed class IncidentQueries(SecureLabDbContext dbContext, ILogger<Incide
             .ToListAsync(cancellationToken);
     }
 
-    public Task<IncidentDetailsResponse?> GetDetailsAsync(Guid id, CancellationToken cancellationToken)
+    public Task<IncidentDetailsResponse?> GetDetailsAsync(
+        Guid id,
+        IncidentViewer viewer,
+        CancellationToken cancellationToken)
     {
         logger.LogInformation("Loading incident {IncidentId}", id);
+
+        var includeInternalComments = viewer.IsAnalyst;
 
         return dbContext.Incidents
             .AsNoTracking()
             .Where(incident => incident.Id == id)
+            .Where(IncidentAccess.VisibleTo(viewer))
             .Select(incident => new IncidentDetailsResponse(
                 incident.Id,
                 incident.Title,
@@ -48,7 +55,7 @@ public sealed class IncidentQueries(SecureLabDbContext dbContext, ILogger<Incide
                 incident.CreatedAtUtc,
                 incident.Owner.DisplayName,
                 incident.Comments
-                    .Where(comment => !comment.IsInternal)
+                    .Where(comment => includeInternalComments || !comment.IsInternal)
                     .OrderBy(comment => comment.CreatedAtUtc)
                     .Select(comment => new IncidentCommentResponse(
                         comment.Id,
