@@ -36,7 +36,7 @@
 - Докази — скріни відповіді (status і title), без cookie, пароля та заголовків `Set-Cookie`.
 
 ## Виправлення та retest
-- Fixed commit і тег `v0.4.0` — див. розділ «Перевірки, відтворення і подання».
+- Fixed commit: `fac76df42c5639c89275c23178bfed3f1239a18e` (тег `v0.4.0`).
 - Ті самі запити після виправлення: Alice → Bob `404 "Інцидент не знайдено"`; Alice → своє `200`;
   Morgan → Alice `200`; анонім → `401`.
 - Mutation: стан до/після перевіряється повторним читанням з БД у тестах A-04, A-06, A-07, A-08a.
@@ -95,7 +95,9 @@
 - Скидання бази: `dotnet run --project src/SecureLab.Api -- --reset-database`.
 - Тести: `dotnet build SecureLab.sln`; `dotnet test SecureLab.sln --filter "FullyQualifiedName~Lab04AuthorizationTests"`;
   `dotnet test SecureLab.sln`.
-- Fixed commit / тег `v0.4.0`: вписується наступним commit після тегу.
+- Vulnerable commit: `ef86f60d1ab1361d83bfd1a6c7ace5d60d27d33a`.
+- Fixed commit = тег `v0.4.0`: `fac76df42c5639c89275c23178bfed3f1239a18e`; хеші вписано окремим commit після тегу.
+- Репозиторій: https://github.com/chudj4ck/Laboratory-Work-1-Web-System-Setup-and-Extension (гілка `lab/4-authorization`, тег `v0.4.0`).
 - Невиконано: A-08b (обрано A-08a), A-11 і розділ відмінного рівня.
 
 ## Використання ШІ
