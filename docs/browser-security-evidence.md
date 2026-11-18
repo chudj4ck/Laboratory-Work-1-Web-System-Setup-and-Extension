@@ -8,7 +8,14 @@
 
 Receipt `.scaffolds/lab-05.json`: release `lab-05-start-v1`, inherits `v0.4.0`, base_commit `fac76df42c5639c89275c23178bfed3f1239a18e`, entry_parent `fac76df42c5639c89275c23178bfed3f1239a18e` (commit політики SDK не потрібен — global.json уже містив 10.0.100 / latestFeature).
 
-Гілка `lab/5-browser-xss` від `v0.4.0`. Vulnerable commit (scaffold installed): `511b59272f1b773f625abb10f15b9f37fad6e477`. Seed-commit другого sink (публічний коментар …000000000005 з marker): `5b577c7ccaf93b087be73152f856e8b570819147`. Fixed commit XSS (safe DOM helper для Description і comments): `561d456ce655d4311d092ac039e8aae71d185e22`. (entry_parent — commit, від якого встановлено scaffold; збігається з base_commit, якщо після v0.4.0 не було commit політики SDK). Vulnerable/fixed hashes, v0.5.0, main і спосіб передавання: …
+Гілка `lab/5-browser-xss` від `v0.4.0`. Hashes:
+- vulnerable commit (scaffold installed): `511b59272f1b773f625abb10f15b9f37fad6e477`;
+- seed-commit другого sink (публічний коментар `…000000000005` з marker): `5b577c7ccaf93b087be73152f856e8b570819147`;
+- XSS fix (safe DOM helper для Description і comments): `561d456ce655d4311d092ac039e8aae71d185e22`;
+- **fixed commit = тег `v0.5.0`** (CORS Development policy, enforcement CSP, докази): `013bf70b94d6706d5da8abeeabf22e74213e24ff`;
+- `main` переведено fast-forward на fixed commit; хеші записано наступним окремим commit «Record lab 5 hashes».
+
+Спосіб передавання: приватний remote https://github.com/chudj4ck/Laboratory-Work-1-Web-System-Setup-and-Extension (гілка `lab/5-browser-xss`, тег `v0.5.0`, `main`).
 
 Механізм сеансу: cookie `.AspNetCore.Identity.Application` (ASP.NET Core Identity), host-only `localhost`, Path `/`, HttpOnly = true, SameSite = Lax, Secure — SameAsRequest у Development (http-стенд), Always поза Development. Value не записується.
 
