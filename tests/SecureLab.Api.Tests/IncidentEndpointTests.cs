@@ -17,7 +17,13 @@ public sealed class IncidentEndpointTests(SecureLabApiFactory factory)
     {
         var password = Environment.GetEnvironmentVariable("SeedUsers__Password")
             ?? throw new InvalidOperationException("Set local SeedUsers__Password outside Git.");
-        return _factory.LoginAsync("alice", password);
+        return LoginWithCsrfAsync(password);
+    }
+
+    private async Task<HttpClient> LoginWithCsrfAsync(string password)
+    {
+        var client = await _factory.LoginAsync("alice", password);
+        return await client.WithCsrfTokenAsync();
     }
 
     // ЛР 4: список обмежено дозволеною множиною (матриця), тому Alice бачить лише власні інциденти.

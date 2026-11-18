@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using SecureLab.Api.Data;
 using SecureLab.Api.Data.Entities;
+using SecureLab.Api.Security;
 
 namespace SecureLab.Api.Scaffolding;
 
@@ -172,14 +173,15 @@ public static class Lab03Identity
         {
             var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-            // Стандартний вихід Identity: сервер надсилає Set-Cookie, що видаляє cookie сеансу.
             await signIn.SignOutAsync();
 
             loggerFactory.CreateLogger(AuthenticationLogCategory).LogInformation(
                 "Authentication event {EventType}: result {Result}, user {UserId}, trace {TraceId}",
                 "logout", "succeeded", userId, httpContext.TraceIdentifier);
             return Results.NoContent();
-        }).RequireAuthorization();
+        })
+        .RequireAuthorization()
+        .AddEndpointFilter<AntiforgeryFilter>();
 
 
         app.MapGet("/api/me", (HttpContext context) =>

@@ -15,7 +15,9 @@ public sealed class Lab04AuthorizationTests(SecureLabApiFactory factory) : IClas
         Environment.GetEnvironmentVariable("SeedUsers__Password")
         ?? throw new InvalidOperationException("Set local SeedUsers__Password outside Git.");
 
-    private Task<HttpClient> LoginAsync(string userName) => factory.LoginAsync(userName, StudyPassword);
+    // ЛР 6: автентифіковані клієнти цих тестів перевіряють авторизацію, тому мають дійсний CSRF-токен.
+    private async Task<HttpClient> LoginAsync(string userName) =>
+        await (await factory.LoginAsync(userName, StudyPassword)).WithCsrfTokenAsync();
 
     private HttpClient CreateAnonymousClient() => factory.CreateClient(new()
     {

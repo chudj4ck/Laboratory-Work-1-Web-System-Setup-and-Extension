@@ -5,12 +5,16 @@ using SecureLab.Api.Application.Incidents;
 using SecureLab.Api.Data;
 using SecureLab.Api.Data.Entities;
 using SecureLab.Api.Presentation.Contracts;
+using SecureLab.Api.Security;
 
 namespace SecureLab.Api.Presentation.Endpoints;
 
 public static class IncidentEndpoints
 {
+    public const string SearchRateLimitPolicy = "search-limit";
+
     private const string AuthorizationAuditCategory = "SecureLab.Authorization";
+    private const string SecurityAuditCategory = "SecureLab.Audit";
     private const int MaxTitleLength = 160;
     private const int MaxDescriptionLength = 4000;
     private const int MinDescriptionLengthForHighSeverity = 40;
@@ -28,7 +32,9 @@ public static class IncidentEndpoints
             .Produces<IReadOnlyList<IncidentListItemResponse>>()
             .ProducesValidationProblem();
 
+        // ЛР 6: обмеження частоти пошуку на користувача (3 запити / 10 с).
         group.MapGet("/search", SearchAsync)
+            .RequireRateLimiting(SearchRateLimitPolicy)
             .WithName("SearchIncidents")
             .Produces<IReadOnlyList<IncidentListItemResponse>>()
             .ProducesValidationProblem();
@@ -44,12 +50,14 @@ public static class IncidentEndpoints
             .ProducesValidationProblem();
 
         group.MapPost("/", CreateAsync)
+            .AddEndpointFilter<AntiforgeryFilter>()
             .WithName("CreateIncident")
             .Produces<CreatedIncidentResponse>(StatusCodes.Status201Created)
             .ProducesValidationProblem()
             .ProducesProblem(StatusCodes.Status409Conflict);
 
         group.MapPut("/{id:guid}", UpdateAsync)
+            .AddEndpointFilter<AntiforgeryFilter>()
             .WithName("UpdateIncident")
             .Produces(StatusCodes.Status204NoContent)
             .ProducesValidationProblem()
@@ -57,20 +65,20 @@ public static class IncidentEndpoints
             .ProducesProblem(StatusCodes.Status404NotFound);
 
         group.MapDelete("/{id:guid}", DeleteAsync)
+            .AddEndpointFilter<AntiforgeryFilter>()
             .WithName("DeleteIncident")
             .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound);
 
-        // Привілейована дія: перехід New -> Triaged лише для Analyst (рішення всередині endpoint, щоб записати audit).
         group.MapPost("/{id:guid}/triage", TriageAsync)
+            .AddEndpointFilter<AntiforgeryFilter>()
             .WithName("TriageIncident")
             .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict);
 
-        // Дочірній ресурс: доступ до коментаря перевіряється через батьківський інцидент.
         endpoints.MapGroup("/api/incident-comments")
             .WithTags("Incident comments")
             .RequireAuthorization()
@@ -306,12 +314,9 @@ public static class IncidentEndpoints
         // Tracked entity; поля role/status/owner із тіла запиту не читаються взагалі.
         var incident = await db.Incidents.SingleOrDefaultAsync(item => item.Id == id, ct);
 
-        // 1. Рішення про право: роль із principal + видимість ресурсу.
         var decision = IncidentAccess.Decide(viewer, incident, IncidentOperation.Triage);
         if (decision != IncidentAccessDecision.Allow)
         {
-            // Безпечна аудиторська подія: без cookie, пароля, токена й тіла запиту.
-            // TraceId - той самий, що потрапляє в поле traceId відповіді Problem Details.
             loggerFactory.CreateLogger(AuthorizationAuditCategory).LogWarning(
                 "{EventName}: subject {SubjectId}, action {Action}, resource {ResourceId}, result {Result}, at {OccurredAtUtc}, trace {TraceId}",
                 "authorization.denied",
@@ -351,6 +356,19 @@ public static class IncidentEndpoints
         });
 
         await db.SaveChangesAsync(ct);
+
+        loggerFactory.CreateLogger(SecurityAuditCategory).LogInformation(
+            "{EventName}: subject {SubjectId}, action {Action}, resource {ResourceId}, result {Result}, {OldStatus} -> {NewStatus}, at {OccurredAtUtc}, trace {TraceId}",
+            "audit.event",
+            viewer.UserId,
+            "incident.triage",
+            incident.Id,
+            "success",
+            IncidentStatus.New,
+            IncidentStatus.Triaged,
+            now,
+            Activity.Current?.Id ?? httpContext.TraceIdentifier);
+
         return Results.NoContent();
     }
 
