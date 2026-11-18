@@ -54,6 +54,20 @@ builder.Services.AddRateLimiter(options =>
     });
 });
 
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddCors(options =>
+    {
+        options.AddPolicy("Lab05BrowserProbe", policy =>
+        {
+            policy.WithOrigins("http://localhost:4173")
+                .WithMethods("GET")
+                .WithHeaders("X-Lab-Cors-Probe")
+                .AllowCredentials();
+        });
+    });
+}
+
 var app = builder.Build();
 
 var resetRequested = args.Contains("--reset-database", StringComparer.Ordinal);
@@ -67,10 +81,23 @@ if (resetRequested)
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 
+const string ContentSecurityPolicy =
+    "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; "
+    + "img-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
+
 app.Use(async (context, next) =>
 {
     context.Response.Headers.XContentTypeOptions = "nosniff";
     context.Response.Headers.Append("Referrer-Policy", "no-referrer");
+
+    var isDevelopmentApiReference =
+        app.Environment.IsDevelopment()
+        && context.Request.Path.StartsWithSegments("/scalar");
+    if (!isDevelopmentApiReference)
+    {
+        context.Response.Headers.ContentSecurityPolicy = ContentSecurityPolicy;
+    }
+
     await next(context);
 });
 
@@ -78,6 +105,12 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.MapScalarApiReference();
+}
+
+app.UseRouting();
+if (app.Environment.IsDevelopment())
+{
+    app.UseCors("Lab05BrowserProbe");
 }
 
 app.UseAuthentication();
