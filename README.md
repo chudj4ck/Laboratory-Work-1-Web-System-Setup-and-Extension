@@ -136,3 +136,29 @@ docs/                    карта архітектури, варіант, ма
 
 Перед commit перегляньте `git status`, `git diff --staged` і переконайтеся, що
 до Git не потрапили `.env`, cookies, tokens, реальні passwords, dumps або logs.
+
+## 8. ЛР 6: перевірка захищеного стану
+
+Пароль навчальних акаунтів задається лише локально (PowerShell): `$env:SeedUsers__Password = Read-Host "Seed password"`.
+
+```powershell
+docker compose -f infra/compose.yaml up -d
+dotnet run --project src/SecureLab.Api -- --reset-database
+dotnet test SecureLab.sln --configuration Release
+dotnet run --project src/SecureLab.Api
+```
+
+- Змінювальні запити з cookie-сеансом (`POST/PUT/DELETE /api/incidents…`, `POST /api/incidents/{id}/triage`,
+  `POST /api/auth/logout`) потребують заголовка `X-CSRF-TOKEN`; токен видає `GET /api/auth/csrf-token`
+  після входу. Клієнт отримує його через `Client/csrf-helper.js`.
+- `GET /api/incidents/search` обмежено 3 запитами за 10 с на користувача (429 Problem Details).
+- Production-like запуск (без launch profile, connection string лише через змінну середовища):
+
+```powershell
+$env:ASPNETCORE_ENVIRONMENT = "Production"
+$env:ASPNETCORE_URLS = "http://localhost:5080"
+$env:ConnectionStrings__SecureLab = "<локальний рядок підключення>"
+dotnet run --project src/SecureLab.Api --no-launch-profile -c Release
+```
+
+Документи огляду: `docs/threat-model.md`, `docs/security-review.md`, `docs/findings/`.

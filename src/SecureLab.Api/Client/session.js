@@ -130,6 +130,7 @@ document.querySelector("#login-form").addEventListener("submit", async event => 
     const response = await postJson("/api/auth/login", request);
     loginResult.textContent = `Вхід: ${response.status}.`;
     if (response.status === 204) {
+      SecureLabCsrf.reset();
       await loadProfile();
     } else {
       clearProfile();
@@ -157,7 +158,11 @@ document.querySelector("#incident-form").addEventListener("submit", async event 
   };
   incidentList.replaceChildren();
   try {
-    const response = await postJson("/api/incidents", request);
+    const response = await SecureLabCsrf.mutate("/api/incidents", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request)
+    });
     if (response.status === 201 && isJson(response)) {
       const incident = await response.json();
       incidentResult.textContent = "Інцидент створено: 201.";
@@ -182,8 +187,9 @@ document.querySelector("#incident-form").addEventListener("submit", async event 
 
 document.querySelector("#logout").addEventListener("click", async () => {
   try {
-    const response = await apiFetch("/api/auth/logout", { method: "POST" });
+    const response = await SecureLabCsrf.mutate("/api/auth/logout", { method: "POST" });
     logoutResult.textContent = `Вихід: ${response.status}.`;
+    if (response.ok) SecureLabCsrf.reset();
     if (response.status === 204 || response.status === 401) {
       clearProfile();
       clearIncident();

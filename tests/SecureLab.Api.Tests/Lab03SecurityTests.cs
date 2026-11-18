@@ -84,7 +84,7 @@ public sealed class Lab03SecurityTests(SecureLabApiFactory factory) : IClassFixt
     [Fact]
     public async Task A04_CreateWithoutOwner_UsesPrincipalAsOwner()
     {
-        using var bob = await factory.LoginAsync("bob", StudyPassword);
+        using var bob = await (await factory.LoginAsync("bob", StudyPassword)).WithCsrfTokenAsync();
 
         using var response = await bob.PostAsJsonAsync("/api/incidents", NewIncident("A04"));
 
@@ -95,7 +95,7 @@ public sealed class Lab03SecurityTests(SecureLabApiFactory factory) : IClassFixt
     [Fact]
     public async Task A05_ForgedOwnerInJson_IsIgnored_OwnerStaysPrincipal()
     {
-        using var bob = await factory.LoginAsync("bob", StudyPassword);
+        using var bob = await (await factory.LoginAsync("bob", StudyPassword)).WithCsrfTokenAsync();
         var body = new
         {
             title = $"A05 {Guid.NewGuid():N}",
@@ -116,7 +116,7 @@ public sealed class Lab03SecurityTests(SecureLabApiFactory factory) : IClassFixt
     [Fact]
     public async Task A06_Logout_ThenProtectedRequestReturns401()
     {
-        using var alice = await factory.LoginAsync("alice", StudyPassword);
+        using var alice = await (await factory.LoginAsync("alice", StudyPassword)).WithCsrfTokenAsync();
 
         using var before = await alice.GetAsync("/api/me");
         using var logout = await alice.PostAsync("/api/auth/logout", content: null);

@@ -1,10 +1,12 @@
 using SecureLab.Api.Scaffolding;
+using System.Security.Claims;
 using System.Threading.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 using SecureLab.Api.Application.Incidents;
 using SecureLab.Api.Data;
 using SecureLab.Api.Presentation.Endpoints;
+using SecureLab.Api.Security;
 
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
@@ -23,19 +25,33 @@ builder.Services.AddDbContext<SecureLabDbContext>(options =>
 builder.Services.AddScoped<IncidentQueries>();
 
 builder.AddLab03Identity();
+builder.AddSecureLabAntiforgery();
 
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.OnRejected = (context, _) =>
+    options.OnRejected = async (context, _) =>
     {
-        context.HttpContext.RequestServices
+        var httpContext = context.HttpContext;
+        var isLogin = httpContext.Request.Path.StartsWithSegments("/api/auth/login");
+        httpContext.RequestServices
             .GetRequiredService<ILoggerFactory>()
-            .CreateLogger(Lab03Identity.AuthenticationLogCategory)
+            .CreateLogger(isLogin ? Lab03Identity.AuthenticationLogCategory : "SecureLab.RateLimiting")
             .LogWarning(
-                "Authentication event {EventType}: result {Result}, trace {TraceId}",
-                "login", "rate_limited", context.HttpContext.TraceIdentifier);
-        return ValueTask.CompletedTask;
+                "Rate limit event {EventType}: result {Result}, trace {TraceId}",
+                isLogin ? "login" : "incident.search", "rate_limited", httpContext.TraceIdentifier);
+
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+        {
+            httpContext.Response.Headers.RetryAfter = ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(
+                System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        await Results.Problem(
+            title: "Забагато запитів",
+            detail: "Квоту запитів вичерпано. Повторіть пізніше.",
+            statusCode: StatusCodes.Status429TooManyRequests)
+            .ExecuteAsync(httpContext);
     };
     options.AddPolicy(Lab03Identity.LoginRateLimitPolicy, httpContext =>
     {
@@ -45,6 +61,23 @@ builder.Services.AddRateLimiter(options =>
 
         return RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = permitLimit,
+                Window = TimeSpan.FromSeconds(windowSeconds),
+                QueueLimit = 0
+            });
+    });
+
+    options.AddPolicy(IncidentEndpoints.SearchRateLimitPolicy, httpContext =>
+    {
+        var configuration = httpContext.RequestServices.GetRequiredService<IConfiguration>();
+        var permitLimit = configuration.GetValue("SearchRateLimit:PermitLimit", 3);
+        var windowSeconds = configuration.GetValue("SearchRateLimit:WindowSeconds", 10);
+        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: userId is null ? "anonymous" : $"user:{userId}",
             factory: _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = permitLimit,
@@ -78,28 +111,34 @@ if (resetRequested)
     return;
 }
 
-app.UseExceptionHandler();
-app.UseStatusCodePages();
-
 const string ContentSecurityPolicy =
     "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; "
     + "img-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
 
 app.Use(async (context, next) =>
 {
-    context.Response.Headers.XContentTypeOptions = "nosniff";
-    context.Response.Headers.Append("Referrer-Policy", "no-referrer");
-
-    var isDevelopmentApiReference =
-        app.Environment.IsDevelopment()
-        && context.Request.Path.StartsWithSegments("/scalar");
-    if (!isDevelopmentApiReference)
+    context.Response.OnStarting(() =>
     {
-        context.Response.Headers.ContentSecurityPolicy = ContentSecurityPolicy;
-    }
+        var headers = context.Response.Headers;
+        headers.XContentTypeOptions = "nosniff";
+        headers["Referrer-Policy"] = "no-referrer";
+
+        var isDevelopmentApiReference =
+            app.Environment.IsDevelopment()
+            && context.Request.Path.StartsWithSegments("/scalar");
+        if (!isDevelopmentApiReference)
+        {
+            headers.ContentSecurityPolicy = ContentSecurityPolicy;
+        }
+
+        return Task.CompletedTask;
+    });
 
     await next(context);
 });
+
+app.UseExceptionHandler();
+app.UseStatusCodePages();
 
 if (app.Environment.IsDevelopment())
 {
@@ -132,6 +171,7 @@ app.MapGet("/health", async (SecureLabDbContext dbContext, CancellationToken can
 
 app.MapIncidentEndpoints();
 app.MapLab03Identity();
+app.MapSecureLabAntiforgery();
 app.MapFallbackToFile("index.html");
 
 app.Run();
